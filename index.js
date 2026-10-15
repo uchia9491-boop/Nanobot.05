@@ -2,19 +2,24 @@
 require("dotenv").config();
 
 const pino = require("pino");
+const {
+  processarComando
+} = require("./commands");
+
+const {
+  eAdministrador
+} = require("./admin");
+
+const logger = pino({ level: "silent" });
 
 async function iniciarBot() {
   console.log("================================");
-  console.log("       NANO BOT");
+  console.log("          NANO BOT");
   console.log("================================");
-  console.log("A iniciar o sistema...");
 
   try {
-    const { default: makeWASocket } = await import(
-      "@whiskeysockets/baileys"
-    );
-
     const {
+      default: makeWASocket,
       useMultiFileAuthState,
       DisconnectReason
     } = await import("@whiskeysockets/baileys");
@@ -25,14 +30,44 @@ async function iniciarBot() {
 
     const sock = makeWASocket({
       auth: state,
-      logger: pino({ level: "silent" }),
+      logger,
       printQRInTerminal: false,
       browser: ["NANO BOT", "Chrome", "1.0.0"]
     });
 
     sock.ev.on("creds.update", saveCreds);
 
-    sock.ev.on("connection.update", async (update) => {
+    if (!state.creds.registered) {
+      const telefone = String(
+        process.env.PHONE_NUMBER || ""
+      ).replace(/\D/g, "");
+
+      if (!telefone) {
+        console.log(
+          "Configura PHONE_NUMBER no servidor para pedir o codigo de emparelhamento."
+        );
+      } else {
+        try {
+          const codigo = await sock.requestPairingCode(
+            telefone
+          );
+
+          console.log(
+            "CODIGO DE EMPARELHAMENTO:", codigo
+          );
+          console.log(
+            "Introduz o codigo no WhatsApp do teu telemovel."
+          );
+        } catch (erro) {
+          console.error(
+            "Nao foi possivel gerar o codigo:",
+            erro.message
+          );
+        }
+      }
+    }
+
+    sock.ev.on("connection.update", (update) => {
       const { connection, lastDisconnect } = update;
 
       if (connection === "open") {
@@ -40,16 +75,22 @@ async function iniciarBot() {
       }
 
       if (connection === "close") {
-        const code = lastDisconnect?.error?.output?.statusCode;
+        const codigo =
+          lastDisconnect?.error?.output?.statusCode;
 
-        console.log("Ligação encerrada. Código:", code);
+        console.log("Ligacao encerrada:", codigo);
 
-        if (code !== DisconnectReason.loggedOut) {
-          console.log("A tentar reconectar...");
-          setTimeout(() => iniciarBot(), 3000);
+        if (codigo !== DisconnectReason.loggedOut) {
+          console.log(
+            "A tentar restabelecer a ligacao..."
+          );
+
+          setTimeout(() => {
+            iniciarBot();
+          }, 5000);
         } else {
           console.log(
-            "Sessão terminada. Será necessário emparelhar novamente."
+            "Sessao terminada. Emparelha novamente."
           );
         }
       }
@@ -61,28 +102,58 @@ async function iniciarBot() {
       for (const msg of messages) {
         if (!msg.message || msg.key.fromMe) continue;
 
-        const remetente = msg.key.remoteJid;
+        const destinatario = msg.key.remoteJid;
+
+        if (!destinatario ||
+            destinatario === "status@broadcast") {
+          continue;
+        }
+
+        // Nesta fase, processamos apenas conversas privadas.
+        if (destinatario.endsWith("@g.us")) continue;
+
+        const conteudo = msg.message;
         const texto =
-          msg.message.conversation ||
-          msg.message.extendedTextMessage?.text ||
+          conteudo.conversation ||
+          conteudo.extendedTextMessage?.text ||
+          conteudo.imageMessage?.caption ||
+          conteudo.videoMessage?.caption ||
           "";
 
         if (!texto.trim()) continue;
 
-        console.log(`Mensagem recebida de ${remetente}: ${texto}`);
+        const remetente =
+          msg.key.participant || destinatario;
 
-        if (texto.trim().toLowerCase() === "!nano") {
-          await sock.sendMessage(remetente, {
-            text: "Olá! 👋 O NANO BOT está online."
+        const nome = msg.pushName || null;
+
+        try {
+          if (eAdministrador(remetente)) {
+            console.log("Mensagem do administrador.");
+          }
+
+          await processarComando({
+            sock,
+            mensagem: texto,
+            whatsappId: destinatario,
+            nome
           });
+        } catch (erro) {
+          console.error(
+            "Erro ao processar mensagem:",
+            erro.message
+          );
         }
       }
     });
+
   } catch (erro) {
-    console.error("Erro ao iniciar o NANO BOT:", erro.message);
+    console.error(
+      "Erro ao iniciar o NANO BOT:",
+      erro.message
+    );
     process.exitCode = 1;
   }
 }
 
 iniciarBot();
-          
