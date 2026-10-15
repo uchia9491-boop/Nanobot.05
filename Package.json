@@ -1,0 +1,20 @@
+{
+  "name": "nano-bot",
+  "version": "1.0.0",
+  "description": "WhatsApp bot with SQLite and payment receipt OCR",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.18",
+    "better-sqlite3": "^11.8.1",
+    "dotenv": "^16.4.7",
+    "pino": "^9.6.0",
+    "qrcode-terminal": "^0.12.0",
+    "tesseract.js": "^6.0.1"
+  }
+}
