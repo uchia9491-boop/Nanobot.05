@@ -1,0 +1,27 @@
+
+# Segredos e configuracoes privadas
+.env
+.env.*
+!.env.example
+
+# Sessao e credenciais do WhatsApp
+auth_info/
+auth_info_*/
+
+# Base de dados e comprovativos
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+receipts/
+
+# Dependencias
+node_modules/
+
+# Registos
+*.log
+npm-debug.log*
+
+# Ficheiros temporarios
+.tmp/
+temp/
